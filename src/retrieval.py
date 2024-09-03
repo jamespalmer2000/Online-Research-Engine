@@ -38,7 +38,13 @@ class EmbeddingRetriever:
 
         # Create a retriever from the database to find relevant documents
         retriever = db.as_retriever(search_kwargs={"k": self.TOP_K})
-        return retriever.get_relevant_documents(query) # Retrieve and return the relevant documents
+        relevant_documents = retriever.get_relevant_documents(query) # Retrieve and return the relevant documents
+
+        # Explicitly delete the collection 
+        db.delete_collection() 
+        del db
+
+        return relevant_documents
 
 # Example usage
 if __name__ == "__main__":
