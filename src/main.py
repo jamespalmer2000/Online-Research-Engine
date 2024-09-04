@@ -54,6 +54,9 @@ if __name__ == "__main__":
     ai_message_obj = content_processor.get_answer(query, formatted_relevant_docs, serper_response['language'], output_format, profile)
     answer = ai_message_obj.content + '\n'
     end = time.time()
+
+    print(answer)
+
     print("\n\nGPT Answer time:", end - start, "s")
 
     # Optional Part: display the reference sources of the quoted sentences in LLM's answer
