@@ -3,21 +3,19 @@ import os
 import yaml
 from fetch_web_content import WebContentFetcher
 from retrieval import EmbeddingRetriever
-from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 class GPTAnswer:
     TOP_K = 10  # Top K documents to retrieve
 
-    def __init__(self):
+    def __init__(self, llm):
         # Load configuration from a YAML file
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
         with open(config_path, 'r') as file:
             self.config = yaml.safe_load(file)
-        self.model_name = self.config["model_name"]
-        self.api_key = self.config["openai_api_key"]
+
+        self.llm = llm
 
     def _format_reference(self, relevant_docs_list, link_list):
         # Format the references from the retrieved documents for use in the prompt
@@ -45,9 +43,7 @@ class GPTAnswer:
         return rearranged_index_list
 
     def get_answer(self, query, relevant_docs, language, output_format, profile):
-        # Create an instance of ChatOpenAI and generate an answer
-        llm = ChatOpenAI(model_name=self.model_name, openai_api_key=self.api_key, temperature=0.0, streaming=True, callbacks=[StreamingStdOutCallbackHandler()])
-        
+        # Use llm instance and generate an answer
         template = self.config["template"]
         prompt_template = PromptTemplate(
             input_variables=["profile", "context_str", "language", "query", "format"],
@@ -58,13 +54,40 @@ class GPTAnswer:
         summary_prompt = prompt_template.format(context_str=relevant_docs, language=language, query=query, format=output_format, profile=profile)
         print("\n\nThe message sent to LLM:\n", summary_prompt)
         print("\n\n", "="*30, "GPT's Answer: ", "="*30, "\n")
-        gpt_answer = llm([HumanMessage(content=summary_prompt)])
+        gpt_answer = self.llm([HumanMessage(content=summary_prompt)])
 
         return gpt_answer
 
 # Example usage
 if __name__ == "__main__":
-    content_processor = GPTAnswer()
+    import os
+    import yaml
+
+    from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+    from langchain.chat_models import AzureChatOpenAI
+    from langchain.embeddings import AzureOpenAIEmbeddings
+
+    # Load configuration from a YAML file
+    config_path = os.path.join(os.path.dirname(__file__), "config", "config.yaml")
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
+
+    llm = AzureChatOpenAI(
+        model=config["azure_llm_deployment"],
+        azure_endpoint=config["azure_endpoint"],
+        openai_api_key=config["azure_openai_api_key"],
+        openai_api_version=config["azure_openai_api_version"],
+        callbacks=[StreamingStdOutCallbackHandler()],
+    )
+
+    embedding_model = AzureOpenAIEmbeddings(
+        model=config["azure_embed_deployment"],
+        azure_endpoint=config["azure_endpoint"],
+        openai_api_key=config["azure_openai_api_key"],
+        openai_api_version=config["azure_openai_api_version"],
+    )
+
+    content_processor = GPTAnswer(llm)
     query = "What happened to Silicon Valley Bank"
     output_format = "" # User can specify output format
     profile = "" # User can define the role for LLM
@@ -74,7 +97,7 @@ if __name__ == "__main__":
     web_contents, serper_response = web_contents_fetcher.fetch()
 
     # Retrieve relevant documents using embeddings
-    retriever = EmbeddingRetriever()
+    retriever = EmbeddingRetriever(embedding_model)
     relevant_docs_list = retriever.retrieve_embeddings(web_contents, serper_response['links'], query)
     formatted_relevant_docs = content_processor._format_reference(relevant_docs_list, serper_response['links'])
     print(formatted_relevant_docs)

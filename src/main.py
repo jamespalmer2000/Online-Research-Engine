@@ -1,11 +1,37 @@
 from fetch_web_content import WebContentFetcher
 from retrieval import EmbeddingRetriever
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.chat_models import AzureChatOpenAI
+from langchain.embeddings import AzureOpenAIEmbeddings
 from llm_answer import GPTAnswer
 from locate_reference import ReferenceLocator
-import time
 import json
+import os
+import time
+import yaml
 
 if __name__ == "__main__":
+
+    # Load configuration from a YAML file
+    config_path = os.path.join(os.path.dirname(__file__), "config", "config.yaml")
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
+
+    llm = AzureChatOpenAI(
+        model=config["azure_llm_deployment"],
+        azure_endpoint=config["azure_endpoint"],
+        openai_api_key=config["azure_openai_api_key"],
+        openai_api_version=config["azure_openai_api_version"],
+        callbacks=[StreamingStdOutCallbackHandler()],
+    )
+
+    embedding_model = AzureOpenAIEmbeddings(
+        model=config["azure_embed_deployment"],
+        azure_endpoint=config["azure_endpoint"],
+        openai_api_key=config["azure_openai_api_key"],
+        openai_api_version=config["azure_openai_api_version"],
+    )
+
     query = "What happened to Silicon Valley Bank"
     output_format = "" # User can specify output format
     profile = "" # User can define the role for LLM
@@ -15,9 +41,9 @@ if __name__ == "__main__":
     web_contents, serper_response = web_contents_fetcher.fetch()
 
     # Retrieve relevant documents using embeddings
-    retriever = EmbeddingRetriever()
+    retriever = EmbeddingRetriever(embedding_model=embedding_model)
     relevant_docs_list = retriever.retrieve_embeddings(web_contents, serper_response['links'], query)
-    content_processor = GPTAnswer()
+    content_processor = GPTAnswer(llm=llm)
     formatted_relevant_docs = content_processor._format_reference(relevant_docs_list, serper_response['links'])
     print(formatted_relevant_docs)
 

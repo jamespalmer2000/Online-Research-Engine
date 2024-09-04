@@ -9,17 +9,14 @@ from langchain.embeddings.sentence_transformer import SentenceTransformerEmbeddi
 class EmbeddingRetriever:
     TOP_K = 10  # Number of top K documents to retrieve
 
-    def __init__(self):
-        # Load configuration from config.yaml file
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
-        with open(config_path, 'r') as file:
-            self.config = yaml.safe_load(file)
-
+    def __init__(self, embedding_model):
         # Initialize the text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=0
         )
+
+        self.embedding_model = embedding_model
 
     def retrieve_embeddings(self, contents_list: list, link_list: list, query: str):
         # Retrieve embeddings for a given list of contents and a query
@@ -29,11 +26,7 @@ class EmbeddingRetriever:
         # Create a Chroma database from the documents using specific embeddings
         db = Chroma.from_documents(
             texts,
-
-            # Select one of the models from OpenAIEmbeddings and text2vec-base-chinese to suit your needs:
-            
-            OpenAIEmbeddings(model='text-embedding-ada-002', openai_api_key=self.config["openai_api_key"])
-            # SentenceTransformerEmbeddings(model_name="shibing624/text2vec-base-chinese")
+            self.embedding_model,
         )
 
         # Create a retriever from the database to find relevant documents
@@ -48,6 +41,23 @@ class EmbeddingRetriever:
 
 # Example usage
 if __name__ == "__main__":
+    import os
+    import yaml
+
+    from langchain.embeddings import AzureOpenAIEmbeddings
+
+    # Load configuration from a YAML file
+    config_path = os.path.join(os.path.dirname(__file__), "config", "config.yaml")
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
+
+    embedding_model = AzureOpenAIEmbeddings(
+        model=config["azure_embed_deployment"],
+        azure_endpoint=config["azure_endpoint"],
+        openai_api_key=config["azure_openai_api_key"],
+        openai_api_version=config["azure_openai_api_version"],
+    )
+
     query = "What happened to Silicon Valley Bank"
 
     # Create a WebContentFetcher instance and fetch web contents
@@ -55,7 +65,7 @@ if __name__ == "__main__":
     web_contents, serper_response = web_contents_fetcher.fetch()
 
     # Create an EmbeddingRetriever instance and retrieve relevant documents
-    retriever = EmbeddingRetriever()
+    retriever = EmbeddingRetriever(embedding_model=embedding_model)
     relevant_docs_list = retriever.retrieve_embeddings(web_contents, serper_response['links'], query)
 
     print("\n\nRelevant Documents from VectorDB:\n", relevant_docs_list)
