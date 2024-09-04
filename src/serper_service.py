@@ -20,7 +20,7 @@ class SerperClient:
 
     def serper(self, query: str):
         # Configure the query parameters for Serper API
-        serper_settings = {"q": query, "page": 2}
+        serper_settings = {"q": query, "page": 1}
 
         # Check if the query contains Chinese characters and adjust settings accordingly
         if self._contains_chinese(query):
