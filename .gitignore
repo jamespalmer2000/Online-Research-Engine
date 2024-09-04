@@ -1,3 +1,5 @@
 .DS_Store
 *.pyc
 *.yaml
+src/secret_models.py
+.vscode/
