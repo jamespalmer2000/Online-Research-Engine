@@ -5,7 +5,19 @@ import re
 
 import search_service
 
+from enum import Enum
+
 class BingNewsSearchClient(search_service.SearchClientInterface):
+    class Freshness(Enum):
+        ANY_TIME = ""
+        DAY = "Day"
+        WEEK = "Week"
+        MONTH = "Month"
+
+    class SortBy(Enum):
+        DATE = "Date"
+        RELEVANCE = "Relevance"
+
     def __init__(self):
         # Load configuration from config.yaml file
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
@@ -18,9 +30,21 @@ class BingNewsSearchClient(search_service.SearchClientInterface):
             "Ocp-Apim-Subscription-Key": config["azure_bing_search_api_key"]
         }
 
-    def bing_news_search(self, query: str):
+    def bing_news_search(self, query: str, country_code: str ="us", count: int = 10, freshness: Freshness | str = Freshness.ANY_TIME, market="en-us", sort_by: str = ""):
         # Configure the query parameters for Bing Web Search API
-        params = {"q": query, "mkt": "en-US", "textDecorations": False}
+        params = {"q": query, "cc": country_code, "count": count, "mkt": market, "textDecorations": False}
+
+        if freshness and isinstance(freshness, BingNewsSearchClient.Freshness) and freshness.value:
+            params["freshness"] = freshness.value
+
+        elif freshness and isinstance(freshness, str):
+            params["freshness"] = freshness
+
+        if sort_by and isinstance(sort_by, BingNewsSearchClient.SortBy) and sort_by.value:
+            params["sort_by"] = sort_by.value
+
+        elif sort_by and isinstance(sort_by, str):
+            params["sort_by"] = sort_by
 
         # Perform the GET request to the Bing Search API and return the JSON response
         response = requests.get(self.url, headers=self.headers, params=params)
