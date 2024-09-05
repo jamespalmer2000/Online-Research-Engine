@@ -4,7 +4,17 @@ import json
 import yaml
 import os
 
+from enum import Enum
+
 class SerperClient:
+    class DateRanges(Enum):
+        ANY_TIME = ""
+        PAST_HOUR = "qdr:h"
+        PAST_24_HOURS = "qdr:d"
+        PAST_WEEK = "qdr:w"
+        PAST_MONTH = "qdr:m"
+        PAST_YEAR = "qdr:y"
+
     def __init__(self):
         # Load configuration from config.yaml file
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
@@ -18,9 +28,15 @@ class SerperClient:
             "Content-Type": "application/json"
         }
 
-    def serper(self, query: str):
+    def serper(self, query: str, country: str ="us", location: str ="us", language: str ="en", date_range: DateRanges | str = DateRanges.ANY_TIME, num_results=10, page=1):
         # Configure the query parameters for Serper API
-        serper_settings = {"q": query, "page": 1}
+        serper_settings = {"q": query, "gl": country, "location": location, "hl": language, "num": num_results, "page": page}
+
+        if date_range and isinstance(date_range, SerperClient.DateRanges) and date_range.value:
+            serper_settings["tbs"] = date_range.value
+
+        elif date_range and isinstance(date_range, str):
+            serper_settings["tbs"] = date_range
 
         # Check if the query contains Chinese characters and adjust settings accordingly
         if self._contains_chinese(query):
