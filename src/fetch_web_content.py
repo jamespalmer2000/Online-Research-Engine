@@ -2,11 +2,18 @@ import threading
 import time
 from web_crawler import WebScraper
 from serper_service import SerperClient
+from bing_web_search_service import BingWebSearchClient
+from bing_news_search_service import BingNewsSearchClient
+
+from enum import Enum
 
 class WebContentFetcher:
-    def __init__(self, query):
+    SearchServices = Enum("SearchServices", ["SERPER", "BING_WEB_SEARCH", "BING_NEWS_SEARCH"])
+
+    def __init__(self, query, search_services=[SearchServices.SERPER]):
         # Initialize the fetcher with a search query
         self.query = query
+        self.search_services = search_services
         self.web_contents = []  # Stores the fetched web contents
         self.error_urls = []  # Stores URLs that resulted in an error during fetching
         self.web_contents_lock = threading.Lock()  # Lock for thread-safe operations on web_contents
@@ -45,6 +52,18 @@ class WebContentFetcher:
         serper_client = SerperClient()
         serper_results = serper_client.serper(self.query)
         return serper_client.extract_components(serper_results)
+    
+    def _bing_web_search_launcher(self):
+        # Function to launch the Bing Web Search client and get search results
+        bing_web_search_client = BingWebSearchClient()
+        bing_web_search_results = bing_web_search_client.bing_web_search(self.query)
+        return bing_web_search_client.extract_components(bing_web_search_results)
+
+    def _bing_news_search_launcher(self):
+        # Function to launch the Bing News Search client and get search results
+        bing_news_search_client = BingNewsSearchClient()
+        bing_news_search_results = bing_news_search_client.bing_news_search(self.query)
+        return bing_news_search_client.extract_components(bing_news_search_results)
 
     def _crawl_threads_launcher(self, url_list):
         # Create and start threads for each URL in the list
@@ -58,24 +77,66 @@ class WebContentFetcher:
             thread.join()
 
     def fetch(self):
-        # Main method to fetch web content based on the query
-        serper_response = self._serper_launcher()
-        if serper_response:
-            url_list = serper_response["links"]
+        # Main method to fetch web content based on the query and search service
+        service_responses = []
+
+        if self.SearchServices.SERPER in self.search_services:
+            service_responses.append(self._serper_launcher())
+        if self.SearchServices.BING_WEB_SEARCH in self.search_services:
+            service_responses.append(self._bing_web_search_launcher())
+        if self.SearchServices.BING_NEWS_SEARCH in self.search_services:
+            service_responses.append(self._bing_news_search_launcher())
+
+        if any(service_responses) and len(service_responses) == 1:
+            service_response = service_responses[0]
+            url_list = service_response["links"]
             self._crawl_threads_launcher(url_list)
             # Reorder the fetched content to match the order of URLs
             ordered_contents = [
                 next((item['content'] for item in self.web_contents if item['url'] == url), '') 
                 for url in url_list
             ]
-            return ordered_contents, serper_response
+            return ordered_contents, service_response
+        
+        elif any(service_responses) and len(service_responses) > 1:
+            url_list = [link for response in service_responses for link in response["links"]]
+            self._crawl_threads_launcher(url_list)
+            # Reorder the fetched content to match the order of URLs
+            ordered_contents = [
+                next((item['content'] for item in self.web_contents if item['url'] == url), '') 
+                for url in url_list
+            ]
+
+            # combine responses from each search service
+            combined_responses = {}
+
+            search_queries = set(response["query"] for response in service_responses)
+            if len(search_queries) > 1:
+                raise ValueError("Different queries were used across multiple search services.")
+            else:  
+                combined_responses["query"] = search_queries.pop()
+
+            search_query_languages = set(response["language"] for response in service_responses) 
+            if len(search_query_languages) > 1:
+                raise ValueError("Different queries were used across multiple search services.")
+            else: 
+                combined_responses["language"] = search_query_languages.pop()
+            
+            combined_responses["count"] = sum(response["count"] for response in service_responses)
+            combined_responses["titles"] = [title for response in service_responses for title in response["titles"]]
+            combined_responses["links"] = [link for response in service_responses for link in response["links"]]
+            combined_responses["snippets"] = [snippet for response in service_responses for snippet in response["snippets"]]
+
+            return ordered_contents, combined_responses
+
         return [], None
 
 # Example usage
 if __name__ == "__main__":
-    fetcher = WebContentFetcher("What happened to Silicon Valley Bank")
-    contents, serper_response = fetcher.fetch()
+    services = [WebContentFetcher.SearchServices.SERPER, WebContentFetcher.SearchServices.BING_WEB_SEARCH]
+    fetcher = WebContentFetcher("What happened to Silicon Valley Bank", search_services=services)
+    contents, services_response = fetcher.fetch()
 
-    print(serper_response)
+    print(services_response)
     print(contents, '\n\n')
     
