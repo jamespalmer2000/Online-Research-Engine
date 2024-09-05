@@ -5,7 +5,28 @@ import re
 
 import search_service
 
+from enum import Enum
+
 class BingWebSearchClient(search_service.SearchClientInterface):
+    class Freshness(Enum):
+        ANY_TIME = ""
+        DAY = "Day"
+        WEEK = "Week"
+        MONTH = "Month"
+
+    class ResponseFilter(Enum):
+        COMPUTATION = "Computation"
+        ENTITIES = "Entities"
+        IMAGES = "Images"
+        NEWS = "News"
+        PLACES = "Places"
+        RELATEDSEARCHES = "RelatedSearches"
+        SPELLSUGGESTIONS = "SpellSuggestions"
+        TIMEZONE = "TimeZone"
+        TRANSLATIONS = "Translations"
+        VIDEOS = "Videos"
+        WEBPAGES = "Webpages"
+
     def __init__(self):
         # Load configuration from config.yaml file
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'config.yaml')
@@ -18,9 +39,21 @@ class BingWebSearchClient(search_service.SearchClientInterface):
             "Ocp-Apim-Subscription-Key": config["azure_bing_search_api_key"]
         }
 
-    def bing_web_search(self, query: str):
+    def bing_web_search(self, query: str, country_code: str ="us", count: int = 10, freshness: Freshness | str = Freshness.ANY_TIME, market: str = "en-us", responseFilter: ResponseFilter | str = ResponseFilter.WEBPAGES):
         # Configure the query parameters for Bing Web Search API
-        params = {"q": query, "mkt": "en-US"}
+        params = {"q": query, "cc": country_code, "count": count, "mkt": market}
+
+        if freshness and isinstance(freshness, BingWebSearchClient.Freshness) and freshness.value:
+            params["freshness"] = freshness.value
+
+        elif freshness and isinstance(freshness, str):
+            params["freshness"] = freshness
+
+        if responseFilter and isinstance(responseFilter, BingWebSearchClient.ResponseFilter) and responseFilter.value:
+            params["responseFilter"] = responseFilter.value
+
+        elif responseFilter and isinstance(responseFilter, str):
+            params["responseFilter"] = responseFilter
 
         # Perform the GET request to the Bing Search API and return the JSON response
         response = requests.get(self.url, headers=self.headers, params=params)
