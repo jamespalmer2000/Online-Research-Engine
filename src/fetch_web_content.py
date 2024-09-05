@@ -10,10 +10,11 @@ from enum import Enum
 class WebContentFetcher:
     SearchServices = Enum("SearchServices", ["SERPER", "BING_WEB_SEARCH", "BING_NEWS_SEARCH"])
 
-    def __init__(self, query, search_services=[SearchServices.SERPER]):
+    def __init__(self, query, search_services=[SearchServices.SERPER], search_args={}):
         # Initialize the fetcher with a search query
         self.query = query
         self.search_services = search_services
+        self.search_args = search_args
         self.web_contents = []  # Stores the fetched web contents
         self.error_urls = []  # Stores URLs that resulted in an error during fetching
         self.web_contents_lock = threading.Lock()  # Lock for thread-safe operations on web_contents
@@ -50,19 +51,22 @@ class WebContentFetcher:
     def _serper_launcher(self):
         # Function to launch the Serper client and get search results
         serper_client = SerperClient()
-        serper_results = serper_client.serper(self.query)
+        serper_args = self.search_args.get(WebContentFetcher.SearchServices.SERPER, {})
+        serper_results = serper_client.serper(self.query, **serper_args)
         return serper_client.extract_components(serper_results)
     
     def _bing_web_search_launcher(self):
         # Function to launch the Bing Web Search client and get search results
         bing_web_search_client = BingWebSearchClient()
-        bing_web_search_results = bing_web_search_client.bing_web_search(self.query)
+        bing_web_search_args = self.search_args.get(WebContentFetcher.SearchServices.BING_WEB_SEARCH, {})
+        bing_web_search_results = bing_web_search_client.bing_web_search(self.query, **bing_web_search_args)
         return bing_web_search_client.extract_components(bing_web_search_results)
 
     def _bing_news_search_launcher(self):
         # Function to launch the Bing News Search client and get search results
         bing_news_search_client = BingNewsSearchClient()
-        bing_news_search_results = bing_news_search_client.bing_news_search(self.query)
+        bing_news_search_args = self.search_args.get(WebContentFetcher.SearchServices.BING_NEWS_SEARCH, {})
+        bing_news_search_results = bing_news_search_client.bing_news_search(self.query, **bing_news_search_args)
         return bing_news_search_client.extract_components(bing_news_search_results)
 
     def _crawl_threads_launcher(self, url_list):
@@ -134,7 +138,11 @@ class WebContentFetcher:
 # Example usage
 if __name__ == "__main__":
     services = [WebContentFetcher.SearchServices.SERPER, WebContentFetcher.SearchServices.BING_WEB_SEARCH]
-    fetcher = WebContentFetcher("What happened to Silicon Valley Bank", search_services=services)
+    search_args = {
+        WebContentFetcher.SearchServices.SERPER: {"num_results": 5},
+        WebContentFetcher.SearchServices.BING_WEB_SEARCH: {"count": 10},
+    }
+    fetcher = WebContentFetcher("What happened to Silicon Valley Bank", search_services=services, search_args={})
     contents, services_response = fetcher.fetch()
 
     print(services_response)
