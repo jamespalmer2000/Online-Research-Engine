@@ -1,31 +1,33 @@
-import requests
 import re
+
+import requests
 from bs4 import BeautifulSoup
 
+
 class WebScraper:
-    def __init__(self, user_agent='macOS'):
+    def __init__(self, user_agent="macOS"):
         # Initialize the scraper with a user agent (default is 'macOS')
         self.headers = self._get_headers(user_agent)
 
     def _get_headers(self, user_agent):
         # Private method to get headers for the request based on the specified user agent
-        if user_agent == 'macOS':
+        if user_agent == "macOS":
             # Headers for macOS user agent
             return {
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-                'sec-ch-ua': '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"macOS"',
+                "Upgrade-Insecure-Requests": "1",
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+                "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
             }
         else:
             # Headers for Windows user agent
             return {
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-                'sec-ch-ua': '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
+                "Upgrade-Insecure-Requests": "1",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+                "sec-ch-ua": '"Not.A/Brand";v="8", "Chromium";v="114", "Google Chrome";v="114"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
             }
 
     def get_webpage_html(self, url):
@@ -42,7 +44,7 @@ class WebScraper:
         except requests.exceptions.Timeout:
             # Add timeout exception handling here
             return response
-        
+
         return response
 
     def convert_html_to_soup(self, html):
@@ -67,11 +69,3 @@ class WebScraper:
         soup = self.convert_html_to_soup(webpage_html)
         main_content = self.extract_main_content(soup, rule)
         return main_content
-
-# Example usage
-if __name__ == "__main__":
-    scraper = WebScraper(user_agent='macOS')
-    test_url = "https://en.wikipedia.org/wiki/Apple_Inc."
-    main_content = scraper.scrape_url(test_url)
-    print(main_content)
-    
