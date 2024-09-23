@@ -25,6 +25,118 @@ class SearchClientInterface:
         pass
 
 
+class SerperPlacesClient(SearchClientInterface):
+    def __init__(self, config_path=None):
+        # Load configuration from config.yaml file
+        if not config_path:
+            config_path = os.path.join(
+                os.path.dirname(__file__), "config", "config.yaml"
+            )
+        with open(config_path, "r") as file:
+            config = yaml.safe_load(file)
+
+        # Set up the URL and headers for the Serper API
+        self.url = "https://google.serper.dev/places"
+        self.headers = {
+            "X-API-KEY": config["serper_api_key"],  # API key from config file
+            "Content-Type": "application/json",
+        }
+
+    def serper_places_search(
+        self,
+        query: str,
+        country: str = "us",
+        location: str = "us",
+        language: str = "en",
+        autocorrect: bool = True,
+        page=1,
+    ):
+        # Configure the query parameters for Serper API
+        serper_settings = {
+            "q": query,
+            "gl": country,
+            "location": location,
+            "hl": language,
+            "autocorrect": autocorrect,
+            "page": page,
+        }
+
+        # Check if the query contains Chinese characters and adjust settings accordingly
+        if self._contains_chinese(query):
+            serper_settings.update(
+                {
+                    "gl": "cn",
+                    "hl": "zh-cn",
+                }
+            )
+
+        payload = json.dumps(serper_settings)
+
+        # Perform the POST request to the Serper API and return the JSON response
+        response = requests.request(
+            "POST", self.url, headers=self.headers, data=payload
+        )
+        return response.json()
+
+    def _contains_chinese(self, query: str):
+        # Check if a string contains Chinese characters using a regular expression
+        pattern = re.compile(r"[\u4e00-\u9fff]+")
+        return bool(pattern.search(query))
+
+    def extract_components(self, service_response: dict) -> dict:
+
+        # Initialize lists to store the extracted components
+        titles = []
+        addresses = []
+        latitudes = []
+        longitudes = []
+        ratings = []
+        rating_counts = []
+        categories = []
+        phone_numbers = []
+        websites = []
+        cids = []
+
+        # Iterate through the 'places' section of the response and extract information
+        for item in service_response.get("places", []):
+            titles.append(item.get("title", ""))
+            addresses.append(item.get("address", ""))
+            latitudes.append(item.get("latitude", ""))
+            longitudes.append(item.get("longitude", ""))
+            ratings.append(item.get("rating", ""))
+            rating_counts.append(item.get("ratingCount", ""))
+            categories.append(item.get("category", ""))
+            phone_numbers.append(item.get("phoneNumber", ""))
+            websites.append(item.get("website", ""))
+            cids.append(item.get("cid", ""))
+
+        # Retrieve additional information from the response
+        query = service_response.get("searchParameters", {}).get("q", "")
+        search_parameters = service_response.get("searchParameters", {})
+        count = len(titles)
+        language = "zh-cn" if self._contains_chinese(query) else "en-us"
+
+        # Organize the extracted data into a dictionary and return
+        output_dict = {
+            "query": query,
+            "search_parameters": search_parameters,
+            "language": language,
+            "count": count,
+            "titles": titles,
+            "addresses": addresses,
+            "latitudes": latitudes,
+            "longitudes": longitudes,
+            "ratings": ratings,
+            "rating_counts": rating_counts,
+            "categories": categories,
+            "phone_numbers": phone_numbers,
+            "websites": websites,
+            "cids": cids,
+        }
+
+        return output_dict
+
+
 class SerperClient(SearchClientInterface):
     class DateRanges(Enum):
         ANY_TIME = ""
