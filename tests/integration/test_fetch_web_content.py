@@ -1,6 +1,9 @@
 import unittest
 
-from online_research_engine.fetch_web_content import WebContentFetcher
+from online_research_engine.fetch_web_content import (
+    PlacesContentFetcher,
+    WebContentFetcher,
+)
 
 
 class TestWebContentFetcher(unittest.TestCase):
@@ -33,6 +36,15 @@ class TestWebContentFetcher(unittest.TestCase):
 
         print(services_response)
         print(contents, "\n\n")
+
+
+class TestPlacesContentFetcher(unittest.TestCase):
+    def test_serper_places_client(self):
+        fetcher = PlacesContentFetcher(
+            "S & S Landscaping",
+            search_args={"location": "58103, North Dakota, United States"},
+        )
+        contents, services_response = fetcher.fetch()
 
 
 if __name__ == "__main__":

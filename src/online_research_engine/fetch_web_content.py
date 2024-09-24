@@ -1,8 +1,16 @@
 import threading
 import time
+from copy import deepcopy
 from enum import Enum
 
-from .search_services import BingNewsSearchClient, BingWebSearchClient, SerperClient
+import trafilatura.sitemaps
+
+from .search_services import (
+    BingNewsSearchClient,
+    BingWebSearchClient,
+    SerperClient,
+    SerperPlacesClient,
+)
 from .web_scraper import WebScraper
 
 
@@ -189,4 +197,112 @@ class WebContentFetcher:
 
             return ordered_contents, combined_responses
 
+        return [], None
+
+
+class PlacesContentFetcher:
+    def __init__(
+        self,
+        query,
+        search_args={},
+        config_path=None,
+    ):
+        # Initialize the fetcher with a search query
+        self.query = query
+        self.search_args = search_args
+        self.config_path = config_path
+        self.web_contents = []  # Stores the fetched web contents
+        self.error_urls = []  # Stores URLs that resulted in an error during fetching
+        self.web_contents_lock = (
+            threading.Lock()
+        )  # Lock for thread-safe operations on web_contents
+        self.error_urls_lock = (
+            threading.Lock()
+        )  # Lock for thread-safe operations on error_urls
+
+    def _web_crawler_thread(self, thread_id: int, urls: list):
+        # Thread function to crawl each URL
+        try:
+            print(f"Starting web crawler thread {thread_id}")
+            start_time = time.time()
+
+            url = urls[thread_id]
+            scraper = WebScraper()
+            content = scraper.scrape_url(url, 0)
+
+            # If the scraped content is too short, try extending the crawl rules
+            if 0 < len(content) < 800:
+                content = scraper.scrape_url(url, 1)
+
+            # If the content length is sufficient, add it to the shared list
+            if len(content) > 300:
+                with self.web_contents_lock:
+                    self.web_contents.append({"url": url, "content": content})
+
+            end_time = time.time()
+            print(
+                f"Thread {thread_id} completed! Time consumed: {end_time - start_time:.2f}s"
+            )
+
+        except Exception as e:
+            # Handle any exceptions, log the error, and store the URL
+            with self.error_urls_lock:
+                self.error_urls.append(url)
+            print(f"Thread {thread_id}: Error crawling {url}: {e}")
+
+    def _serper_places_launcher(self):
+        # Function to launch the SerperPlaces client and get search results
+        serper_places_client = SerperPlacesClient(config_path=self.config_path)
+        serper_args = self.search_args.get(WebContentFetcher.SearchServices.SERPER, {})
+        serper_results = serper_places_client.serper_places_search(
+            self.query, **serper_args
+        )
+        return serper_places_client.extract_components(serper_results)
+
+    def _crawl_threads_launcher(self, url_list):
+        # Create and start threads for each URL in the list
+        threads = []
+        for i in range(len(url_list)):
+            thread = threading.Thread(
+                target=self._web_crawler_thread, args=(i, url_list)
+            )
+            threads.append(thread)
+            thread.start()
+        # Wait for all threads to finish execution
+        for thread in threads:
+            thread.join()
+
+    def fetch(self):
+        service_response = self._serper_places_launcher()
+
+        if service_response and service_response["count"] > 0:
+            filtered_service_response = deepcopy(service_response)
+
+            # Only scrape content for the first place in the response
+            for key in filtered_service_response.keys():
+                if isinstance(filtered_service_response[key], list):
+                    filtered_service_response[key] = filtered_service_response[key][:1]
+
+            websites = filtered_service_response["websites"]
+
+            url_list = [
+                url
+                for website in websites
+                for url in trafilatura.sitemaps.sitemap_search(website)
+            ]
+
+            self._crawl_threads_launcher(url_list)
+            # Reorder the fetched content to match the order of URLs
+            ordered_contents = [
+                next(
+                    (
+                        item["content"]
+                        for item in self.web_contents
+                        if item["url"] == url
+                    ),
+                    "",
+                )
+                for url in url_list
+            ]
+            return ordered_contents, filtered_service_response
         return [], None
