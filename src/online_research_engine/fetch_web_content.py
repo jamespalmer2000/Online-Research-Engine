@@ -253,7 +253,7 @@ class PlacesContentFetcher:
     def _serper_places_launcher(self):
         # Function to launch the SerperPlaces client and get search results
         serper_places_client = SerperPlacesClient(config_path=self.config_path)
-        serper_args = self.search_args.get(WebContentFetcher.SearchServices.SERPER, {})
+        serper_args = self.search_args
         serper_results = serper_places_client.serper_places_search(
             self.query, **serper_args
         )
