@@ -51,7 +51,7 @@ class WebContentFetcher:
             content = scraper.scrape_url(url, 0)
 
             # If the scraped content is too short, try extending the crawl rules
-            if 0 < len(content) < 800:
+            if 0 <= len(content) < 800:
                 content = scraper.scrape_url(url, 1)
 
             # If the content length is sufficient, add it to the shared list
